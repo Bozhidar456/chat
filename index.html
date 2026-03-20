@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тайният Чат на Императора</title>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database-compat.js"></script>
+
+    <style>
+        /* Стиловете са същите като преди */
+        body { font-family: Arial, sans-serif; background-color: #f0f2f5; margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        #login-screen { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); text-align: center; }
+        input[type="password"], input[type="text"] { padding: 10px; width: 80%; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
+        button { padding: 10px 20px; background-color: #0084ff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #006bce; }
+        #error-msg { color: red; display: none; margin-top: 10px; }
+        #chat-screen { display: none; width: 100%; max-width: 500px; background: white; height: 90vh; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); flex-direction: column; }
+        #chat-header { background-color: #0084ff; color: white; padding: 15px; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center; }
+        #chat-header button { background-color: white; color: #0084ff; padding: 5px 10px; font-size: 14px; }
+        #chat-box { flex: 1; padding: 15px; overflow-y: auto; background-color: #e5ddd5; display: flex; flex-direction: column; gap: 10px; }
+        #chat-input-area { display: flex; padding: 10px; border-top: 1px solid #ccc; background: white; border-radius: 0 0 10px 10px; }
+        #chat-input-area input { flex: 1; margin-bottom: 0; border-radius: 20px; padding: 10px 15px; }
+        #chat-input-area button { margin-left: 10px; border-radius: 20px; }
+        .message { max-width: 80%; padding: 8px 12px; border-radius: 15px; background-color: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .message.my-message { align-self: flex-end; background-color: #dcf8c6; }
+        .message.other-message { align-self: flex-start; }
+        .msg-header { font-size: 12px; font-weight: bold; margin-bottom: 3px; color: #555; display: flex; align-items: center; gap: 5px; }
+        .msg-header img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+        .msg-text { font-size: 15px; word-wrap: break-word; }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <h2>Вход в Чата</h2>
+        <input type="password" id="password-input" placeholder="Напиши си името...">
+        <br>
+        <button onclick="login()">Влез</button>
+        <p id="error-msg">Грешна парола! Ти кой си бе?!</p>
+    </div>
+
+    <div id="chat-screen">
+        <div id="chat-header">
+            <span id="welcome-text">Чат</span>
+            <button onclick="logout()">Изход</button>
+        </div>
+        <div id="chat-box" id="chat-box"></div>
+        <div id="chat-input-area">
+            <input type="text" id="msg-input" placeholder="Напиши съобщение..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()">Изпрати</button>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. ТУК СЛОЖИ ТВОЯ FIREBASE CONFIG ---
+        const firebaseConfig = {
+ 	 apiKey: "AIzaSyCZkjCFDTr3XrJPlgpxlakCrBLt3RipqHw",
+	  authDomain: "moyat-chat.firebaseapp.com",
+	  projectId: "moyat-chat",
+	  storageBucket: "moyat-chat.firebasestorage.app",
+	  messagingSenderId: "677706748723",
+	  appId: "1:677706748723:web:bac8a6b548c7e368ee6446"
+	};
+
+        // Инициализиране на Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        // ------------------------------------------
+
+        const users = {
+            "Аз": { name: "Императорът", icon: "<img src='shrek.png' alt='Шрек'>" },
+            "Матео": { name: "Матео", icon: "🤡" },
+            "Чочко": { name: "Чочко", icon: "😍" },
+            "Гешата": { name: "Гешата", icon: "💪🏿" },
+            "Вили": { name: "Вили", icon: "💩" },
+            "Ганчо": { name: "Ганчо", icon: "🍔" },
+            "Крис": { name: "Крис", icon: "✈" },
+            "Ники": { name: "Ники", icon: "🦔" }
+        };
+
+        let currentUserKey = null;
+
+        // Проверка дали сме логнати (пазим го локално, за да не се логва всеки път)
+        window.onload = () => {
+            const savedUser = localStorage.getItem('chat_currentUser');
+            if (savedUser && users[savedUser]) {
+                currentUserKey = savedUser;
+                showChat();
+            }
+        };
+
+        function login() {
+            const pass = document.getElementById('password-input').value.trim();
+            if (users[pass]) {
+                currentUserKey = pass;
+                localStorage.setItem('chat_currentUser', currentUserKey);
+                document.getElementById('error-msg').style.display = 'none';
+                document.getElementById('password-input').value = '';
+                showChat();
+            } else {
+                document.getElementById('error-msg').style.display = 'block';
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('chat_currentUser');
+            currentUserKey = null;
+            document.getElementById('chat-screen').style.display = 'none';
+            document.getElementById('login-screen').style.display = 'block';
+            document.getElementById('chat-box').innerHTML = ''; // Изчистваме чата при изход
+        }
+
+        function showChat() {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('chat-screen').style.display = 'flex';
+            document.getElementById('welcome-text').innerHTML = `Вътре си, ${users[currentUserKey].icon} ${users[currentUserKey].name}`;
+            
+            // Зареждаме съобщенията от Firebase
+            loadMessages();
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') sendMessage();
+        }
+
+        function sendMessage() {
+            const textInput = document.getElementById('msg-input');
+            const text = textInput.value.trim();
+            if (!text) return;
+
+            // Пращаме към Firebase вместо в localStorage!
+            db.ref("messages").push({
+                userKey: currentUserKey,
+                text: text,
+                timestamp: Date.now()
+            });
+            
+            textInput.value = '';
+        }
+
+        // Слушаме за НОВИ съобщения от Firebase в реално време
+        let isListening = false;
+        function loadMessages() {
+            if (isListening) return; // Да не слушаме по два пъти
+            isListening = true;
+
+            db.ref("messages").on("child_added", (snapshot) => {
+                const msg = snapshot.val();
+                renderSingleMessage(msg);
+            });
+        }
+
+        // Чертане на едно съобщение
+        function renderSingleMessage(msg) {
+            const chatBox = document.getElementById('chat-box');
+            const isMe = msg.userKey === currentUserKey;
+            const user = users[msg.userKey] || { name: "Непознат", icon: "❓" };
+
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${isMe ? 'my-message' : 'other-message'}`;
+
+            msgDiv.innerHTML = `
+                <div class="msg-header">${user.icon} ${user.name}</div>
+                <div class="msg-text">${msg.text}</div>
+            `;
+            
+            chatBox.appendChild(msgDiv);
+            chatBox.scrollTop = chatBox.scrollHeight; // Скрол най-долу
+        }
+    </script>
+</body>
+</html>
