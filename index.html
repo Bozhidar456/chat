@@ -30,6 +30,7 @@
 </head>
 <body>
 
+    <audio id="notif-sound" src="notification.mp3" preload="auto"></audio>
     <div id="login-screen">
         <h2>Вход в Чата</h2>
         <input type="text" id="password-input" placeholder="Напиши си името (напр. Аз)...">
@@ -51,6 +52,7 @@
     </div>
 
     <script>
+        // Твоята оригинална Firebase конфигурация (НЕ я сменяй!)
         const firebaseConfig = {
             apiKey: "AIzaSyCZkjCFDTr3XrJPlgpxlakCrBLt3RipqHw",
             authDomain: "moyat-chat.firebaseapp.com",
@@ -64,6 +66,7 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
+        // Твоят оригинален списък с потребители
         const users = {
             "Аз": { name: "Императорът", icon: "👑" },
             "Матео": { name: "Матео", icon: "🤡" },
@@ -127,15 +130,30 @@
             textInput.value = '';
         }
 
+        // --- (АКТУАЛИЗИРАНО) Логика за зареждане на съобщения със звук ---
+        let isListening = false;
         function loadMessages() {
-            // Изчистваме чата преди зареждане, за да няма дублиране
+            if (isListening) return;
+            isListening = true;
+
             document.getElementById('chat-box').innerHTML = '';
             
+            // Намираме звуковия елемент в HTML
+            const sound = document.getElementById('notif-sound');
+
             db.ref("messages").on("child_added", (snapshot) => {
                 const msg = snapshot.val();
                 renderSingleMessage(msg);
+
+                // --- (НОВО) ПУСКАЙ ЗВУК: Само ако съобщението Е от ДРУГ потребител ---
+                if (msg.userKey !== currentUserKey) {
+                    // Пускаме звука. catch() се справя, ако браузърът първоначално го блокира.
+                    sound.play().catch(e => console.log("Браузърът блокира автоматичния звук до първото кликване на потребителя."));
+                }
+                // -------------------------------------------------------------------
             });
         }
+        // ----------------------------------------------------------------------
 
         function renderSingleMessage(msg) {
             const chatBox = document.getElementById('chat-box');
@@ -157,3 +175,5 @@
 </body>
 </html>
 
+
+   
