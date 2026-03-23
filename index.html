@@ -53,18 +53,16 @@
     </div>
 
     <script>
-        // --- 1. ТУК СЛОЖИ ТВОЯ FIREBASE CONFIG ---
+        // --- 1. ТУК Е ТВОЯТ FIREBASE CONFIG (Вече е поправен!) ---
         const firebaseConfig = {
- 	 const firebaseConfig = {
-  apiKey: "AIzaSyCZkjCFDTr3XrJPlgpxlakCrBLt3RipqHw",
-  authDomain: "moyat-chat.firebaseapp.com",
-  databaseURL: "https://moyat-chat-default-rtdb.europe-west1.firebasedatabase.app/", // <--- ТОВА Е ВАЖНИЯТ РЕД!
-  projectId: "moyat-chat",
-  storageBucket: "moyat-chat.firebasestorage.app",
-  messagingSenderId: "677706748723",
-  appId: "1:677706748723:web:bac8a6b548c7e368ee6446"
-};
-	};
+            apiKey: "AIzaSyCZkjCFDTr3XrJPlgpxlakCrBLt3RipqHw",
+            authDomain: "moyat-chat.firebaseapp.com",
+            databaseURL: "https://moyat-chat-default-rtdb.europe-west1.firebasedatabase.app/",
+            projectId: "moyat-chat",
+            storageBucket: "moyat-chat.firebasestorage.app",
+            messagingSenderId: "677706748723",
+            appId: "1:677706748723:web:bac8a6b548c7e368ee6446"
+        };
 
         // Инициализиране на Firebase
         firebase.initializeApp(firebaseConfig);
@@ -84,7 +82,7 @@
 
         let currentUserKey = null;
 
-        // Проверка дали сме логнати (пазим го локално, за да не се логва всеки път)
+        // Проверка дали сме логнати
         window.onload = () => {
             const savedUser = localStorage.getItem('chat_currentUser');
             if (savedUser && users[savedUser]) {
@@ -111,15 +109,13 @@
             currentUserKey = null;
             document.getElementById('chat-screen').style.display = 'none';
             document.getElementById('login-screen').style.display = 'block';
-            document.getElementById('chat-box').innerHTML = ''; // Изчистваме чата при изход
+            document.getElementById('chat-box').innerHTML = ''; 
         }
 
         function showChat() {
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('chat-screen').style.display = 'flex';
             document.getElementById('welcome-text').innerHTML = `Вътре си, ${users[currentUserKey].icon} ${users[currentUserKey].name}`;
-            
-            // Зареждаме съобщенията от Firebase
             loadMessages();
         }
 
@@ -132,7 +128,6 @@
             const text = textInput.value.trim();
             if (!text) return;
 
-            // Пращаме към Firebase вместо в localStorage!
             db.ref("messages").push({
                 userKey: currentUserKey,
                 text: text,
@@ -142,10 +137,9 @@
             textInput.value = '';
         }
 
-        // Слушаме за НОВИ съобщения от Firebase в реално време
         let isListening = false;
         function loadMessages() {
-            if (isListening) return; // Да не слушаме по два пъти
+            if (isListening) return; 
             isListening = true;
 
             db.ref("messages").on("child_added", (snapshot) => {
@@ -154,7 +148,6 @@
             });
         }
 
-        // Чертане на едно съобщение
         function renderSingleMessage(msg) {
             const chatBox = document.getElementById('chat-box');
             const isMe = msg.userKey === currentUserKey;
@@ -169,7 +162,7 @@
             `;
             
             chatBox.appendChild(msgDiv);
-            chatBox.scrollTop = chatBox.scrollHeight; // Скрол най-долу
+            chatBox.scrollTop = chatBox.scrollHeight; 
         }
     </script>
 </body>
