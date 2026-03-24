@@ -18,19 +18,27 @@
         #chat-header { background-color: #0084ff; color: white; padding: 15px; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center; }
         #chat-header button { background-color: white; color: #0084ff; padding: 5px 10px; font-size: 14px; }
         #chat-box { flex: 1; padding: 15px; overflow-y: auto; background-color: #e5ddd5; display: flex; flex-direction: column; gap: 10px; }
-        #chat-input-area { display: flex; padding: 10px; border-top: 1px solid #ccc; background: white; border-radius: 0 0 10px 10px; }
+        #chat-input-area { display: flex; padding: 10px; border-top: 1px solid #ccc; background: white; border-radius: 0 0 10px 10px; align-items: center; }
         #chat-input-area input { flex: 1; margin-bottom: 0; border-radius: 20px; padding: 10px 15px; }
-        #chat-input-area button { margin-left: 10px; border-radius: 20px; }
+        #chat-input-area button { margin-left: 5px; border-radius: 20px; }
+        
+        /* Стил за бутона за снимка */
+        #img-btn { background: #25D366; font-size: 20px; padding: 5px 12px; }
+
         .message { max-width: 80%; padding: 8px 12px; border-radius: 15px; background-color: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; }
         .message.my-message { align-self: flex-end; background-color: #dcf8c6; }
         .message.other-message { align-self: flex-start; }
         .msg-header { font-size: 11px; font-weight: bold; margin-bottom: 3px; color: #555; }
         .msg-text { font-size: 15px; word-wrap: break-word; }
+        
+        /* Стил за самите снимки в чата */
+        .chat-img { max-width: 100%; border-radius: 10px; margin-top: 5px; display: block; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <audio id="notif-sound" src="notification.mp3" preload="auto"></audio>
+    
     <div id="login-screen">
         <h2>Вход в Чата</h2>
         <input type="text" id="password-input" placeholder="Напиши си името (напр. Аз)...">
@@ -46,13 +54,15 @@
         </div>
         <div id="chat-box"></div>
         <div id="chat-input-area">
+            <input type="file" id="image-input" accept="image/*" style="display: none;" onchange="sendImage(this)">
+            <button id="img-btn" onclick="document.getElementById('image-input').click()">📷</button>
+            
             <input type="text" id="msg-input" placeholder="Напиши съобщение..." onkeypress="handleKeyPress(event)">
             <button onclick="sendMessage()">Прати</button>
         </div>
     </div>
 
     <script>
-        // Твоята оригинална Firebase конфигурация (НЕ я сменяй!)
         const firebaseConfig = {
             apiKey: "AIzaSyCZkjCFDTr3XrJPlgpxlakCrBLt3RipqHw",
             authDomain: "moyat-chat.firebaseapp.com",
@@ -66,7 +76,6 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // Твоят оригинален списък с потребители
         const users = {
             "Аз": { name: "Императорът", icon: "👑" },
             "Матео": { name: "Матео", icon: "🤡" },
@@ -124,36 +133,48 @@
             db.ref("messages").push({
                 userKey: currentUserKey,
                 text: text,
+                isImage: false, // Маркер, че е текст
                 timestamp: Date.now()
             });
-           
             textInput.value = '';
         }
 
-        // --- (АКТУАЛИЗИРАНО) Логика за зареждане на съобщения със звук ---
+        // --- ФУНКЦИЯ ЗА ИЗПРАЩАНЕ НА СНИМКА ---
+        function sendImage(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Image = e.target.result;
+                db.ref("messages").push({
+                    userKey: currentUserKey,
+                    text: base64Image,
+                    isImage: true, // Маркер, че е снимка
+                    timestamp: Date.now()
+                });
+            };
+            reader.readAsDataURL(file);
+            input.value = ""; // Нулираме инпута, за да може да пратиш същата снимка пак
+        }
+
         let isListening = false;
         function loadMessages() {
             if (isListening) return;
             isListening = true;
 
             document.getElementById('chat-box').innerHTML = '';
-            
-            // Намираме звуковия елемент в HTML
             const sound = document.getElementById('notif-sound');
 
             db.ref("messages").on("child_added", (snapshot) => {
                 const msg = snapshot.val();
                 renderSingleMessage(msg);
 
-                // --- (НОВО) ПУСКАЙ ЗВУК: Само ако съобщението Е от ДРУГ потребител ---
                 if (msg.userKey !== currentUserKey) {
-                    // Пускаме звука. catch() се справя, ако браузърът първоначално го блокира.
-                    sound.play().catch(e => console.log("Браузърът блокира автоматичния звук до първото кликване на потребителя."));
+                    sound.play().catch(e => console.log("Sound blocked"));
                 }
-                // -------------------------------------------------------------------
             });
         }
-        // ----------------------------------------------------------------------
 
         function renderSingleMessage(msg) {
             const chatBox = document.getElementById('chat-box');
@@ -163,9 +184,17 @@
             const msgDiv = document.createElement('div');
             msgDiv.className = `message ${isMe ? 'my-message' : 'other-message'}`;
 
+            // Проверка: ако е снимка, показваме <img> таг, ако е текст - показваме текста
+            let content = "";
+            if (msg.isImage) {
+                content = `<img src="${msg.text}" class="chat-img" onclick="window.open(this.src)">`;
+            } else {
+                content = `<div class="msg-text">${msg.text}</div>`;
+            }
+
             msgDiv.innerHTML = `
                 <div class="msg-header">${user.icon} ${user.name}</div>
-                <div class="msg-text">${msg.text}</div>
+                ${content}
             `;
            
             chatBox.appendChild(msgDiv);
@@ -174,6 +203,3 @@
     </script>
 </body>
 </html>
-
-
-   
