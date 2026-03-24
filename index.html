@@ -16,14 +16,19 @@
         #error-msg { color: red; display: none; margin-top: 10px; }
         #chat-screen { display: none; width: 100%; max-width: 500px; background: white; height: 90vh; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); flex-direction: column; }
         #chat-header { background-color: #0084ff; color: white; padding: 15px; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center; }
+        
+        /* Стил за бутоните в хедъра */
+        .header-buttons { display: flex; gap: 5px; }
         #chat-header button { background-color: white; color: #0084ff; padding: 5px 10px; font-size: 14px; }
+        #clear-btn { background-color: #ff4b4b !important; color: white !important; display: none; } /* Скрит по подразбиране */
+
         #chat-box { flex: 1; padding: 15px; overflow-y: auto; background-color: #e5ddd5; display: flex; flex-direction: column; gap: 10px; }
         #chat-input-area { display: flex; padding: 10px; border-top: 1px solid #ccc; background: white; border-radius: 0 0 10px 10px; align-items: center; }
         #chat-input-area input { flex: 1; margin-bottom: 0; border-radius: 20px; padding: 10px 15px; }
         #chat-input-area button { margin-left: 5px; border-radius: 20px; }
         
         /* Стил за бутона за снимка */
-        #img-btn { background: #25D366; font-size: 20px; padding: 5px 12px; }
+        #img-btn { background: #25D366; font-size: 20px; padding: 5px 12px; margin-right: 5px; }
 
         .message { max-width: 80%; padding: 8px 12px; border-radius: 15px; background-color: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; }
         .message.my-message { align-self: flex-end; background-color: #dcf8c6; }
@@ -31,7 +36,7 @@
         .msg-header { font-size: 11px; font-weight: bold; margin-bottom: 3px; color: #555; }
         .msg-text { font-size: 15px; word-wrap: break-word; }
         
-        /* Стил за самите снимки в чата */
+        /* Стил за снимките в чата */
         .chat-img { max-width: 100%; border-radius: 10px; margin-top: 5px; display: block; cursor: pointer; }
     </style>
 </head>
@@ -50,7 +55,10 @@
     <div id="chat-screen">
         <div id="chat-header">
             <span id="welcome-text">Чат</span>
-            <button onclick="logout()">Изход</button>
+            <div class="header-buttons">
+                <button id="clear-btn" onclick="clearChat()">Изчисти</button>
+                <button onclick="logout()">Изход</button>
+            </div>
         </div>
         <div id="chat-box"></div>
         <div id="chat-input-area">
@@ -63,6 +71,7 @@
     </div>
 
     <script>
+        // Твоята оригинална конфигурация
         const firebaseConfig = {
             apiKey: "AIzaSyCZkjCFDTr3XrJPlgpxlakCrBLt3RipqHw",
             authDomain: "moyat-chat.firebaseapp.com",
@@ -76,6 +85,7 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
+        // Твоите оригинални потребители
         const users = {
             "Аз": { name: "Императорът", icon: "👑" },
             "Матео": { name: "Матео", icon: "🤡" },
@@ -118,6 +128,12 @@
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('chat-screen').style.display = 'flex';
             document.getElementById('welcome-text').innerHTML = `${users[currentUserKey].icon} ${users[currentUserKey].name}`;
+            
+            // Ако си "Аз", покажи бутона за изчистване
+            if (currentUserKey === "Аз") {
+                document.getElementById('clear-btn').style.display = 'block';
+            }
+
             loadMessages();
         }
 
@@ -133,7 +149,7 @@
             db.ref("messages").push({
                 userKey: currentUserKey,
                 text: text,
-                isImage: false, // Маркер, че е текст
+                isImage: false,
                 timestamp: Date.now()
             });
             textInput.value = '';
@@ -150,12 +166,19 @@
                 db.ref("messages").push({
                     userKey: currentUserKey,
                     text: base64Image,
-                    isImage: true, // Маркер, че е снимка
+                    isImage: true,
                     timestamp: Date.now()
                 });
             };
             reader.readAsDataURL(file);
-            input.value = ""; // Нулираме инпута, за да може да пратиш същата снимка пак
+            input.value = ""; 
+        }
+
+        // --- ФУНКЦИЯ ЗА ИЗЧИСТВАНЕ НА ЧАТА ---
+        function clearChat() {
+            if (confirm("Императоре, сигурен ли си, че искаш да изтриеш ВСИЧКИ съобщения?")) {
+                db.ref("messages").remove();
+            }
         }
 
         let isListening = false;
@@ -166,25 +189,33 @@
             document.getElementById('chat-box').innerHTML = '';
             const sound = document.getElementById('notif-sound');
 
+            // Слушане за нови съобщения
             db.ref("messages").on("child_added", (snapshot) => {
                 const msg = snapshot.val();
-                renderSingleMessage(msg);
+                renderSingleMessage(msg, snapshot.key);
 
                 if (msg.userKey !== currentUserKey) {
                     sound.play().catch(e => console.log("Sound blocked"));
                 }
             });
+
+            // Слушане ако някой изтрие цялата база (за да изчезнат при всички онлайн)
+            db.ref("messages").on("value", (snapshot) => {
+                if (!snapshot.exists()) {
+                    document.getElementById('chat-box').innerHTML = '';
+                }
+            });
         }
 
-        function renderSingleMessage(msg) {
+        function renderSingleMessage(msg, key) {
             const chatBox = document.getElementById('chat-box');
             const isMe = msg.userKey === currentUserKey;
             const user = users[msg.userKey] || { name: "Непознат", icon: "❓" };
 
             const msgDiv = document.createElement('div');
             msgDiv.className = `message ${isMe ? 'my-message' : 'other-message'}`;
+            msgDiv.setAttribute('data-key', key);
 
-            // Проверка: ако е снимка, показваме <img> таг, ако е текст - показваме текста
             let content = "";
             if (msg.isImage) {
                 content = `<img src="${msg.text}" class="chat-img" onclick="window.open(this.src)">`;
